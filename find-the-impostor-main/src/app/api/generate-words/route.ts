@@ -88,6 +88,13 @@ export async function POST(request: NextRequest) {
   const startTime = Date.now();
   const clientIP = getClientIP(request);
 
+  if (!openAIService) {
+    return NextResponse.json(
+      { error: "OpenAI service is not configured. Using offline fallback words." },
+      { status: 503 },
+    );
+  }
+
   try {
     // Multi-tier rate limiting
     //! NOTE: Implement Redis or similar for distributed rate limiting
@@ -236,7 +243,9 @@ export async function POST(request: NextRequest) {
 
 // Health check endpoint
 export async function GET() {
-  const stats = openAIService.getUsageStats();
+  const stats = openAIService
+    ? openAIService.getUsageStats()
+    : { activeIPs: 0, totalRecentRequests: 0 };
 
   return NextResponse.json({
     status: "healthy",

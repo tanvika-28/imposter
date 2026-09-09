@@ -4,6 +4,7 @@ import type {
   Difficulty,
   GameState,
   Player,
+  RoundSummary,
   TranslationFunction,
 } from "@/src/types/game";
 import { create } from "zustand";
@@ -50,6 +51,7 @@ interface GameStore {
   recordRoundResult: (
     winner: "crew" | "impostor",
     winningPlayerNames: string[],
+    roundSummary?: RoundSummary,
   ) => void;
   resetScores: () => void;
   endGame: () => void;
@@ -347,7 +349,7 @@ export const useGameStore = create<GameStore>()(
         }));
       },
 
-      recordRoundResult: (winner, winningPlayerNames) => {
+      recordRoundResult: (winner, winningPlayerNames, roundSummary) => {
         set(state => {
           const updatedScores = { ...state.scores };
           winningPlayerNames.forEach(name => {
@@ -361,6 +363,10 @@ export const useGameStore = create<GameStore>()(
             impostorWins:
               winner === "impostor" ? state.impostorWins + 1 : state.impostorWins,
             roundsPlayed: state.roundsPlayed + 1,
+            gameState: {
+              ...state.gameState,
+              lastRoundSummary: roundSummary || null,
+            },
           };
         });
       },

@@ -101,6 +101,27 @@ export default function VotingPhase() {
     [gameState.players],
   );
 
+  const impostorIds = useMemo(
+    () => impostors.map(imp => imp.id),
+    [impostors],
+  );
+
+  const correctGuessers = useMemo(
+    () =>
+      gameState.players.filter(
+        p => p.role !== "impostor" && impostorIds.includes(gameState.votes[p.id]),
+      ),
+    [gameState.players, impostorIds, gameState.votes],
+  );
+
+  const fooledPlayers = useMemo(
+    () =>
+      gameState.players.filter(
+        p => p.role !== "impostor" && !impostorIds.includes(gameState.votes[p.id]),
+      ),
+    [gameState.players, impostorIds, gameState.votes],
+  );
+
   const crewMembers = useMemo(
     () => gameState.players.filter(p => p.role !== "impostor"),
     [gameState.players],
@@ -119,20 +140,28 @@ export default function VotingPhase() {
     playSound();
     setIsRevealed(true);
 
-    const accused = topSuspects.suspects[0];
-    const isTie = topSuspects.isTie || topSuspects.maxVotes === 0;
-    const accusedIsImpostor = accused && accused.role === "impostor";
+    const impostorNames = impostors.map(imp => imp.name);
+    const correctGuesserNames = correctGuessers.map(p => p.name);
+    const fooledPlayerNames = fooledPlayers.map(p => p.name);
+    const impostorWon = correctGuesserNames.length === 0;
 
-    if (!isTie && accusedIsImpostor) {
-      recordRoundResult(
-        "crew",
-        crewMembers.map(c => c.name),
-      );
+    const roundSummary = {
+      impostorIds,
+      impostorNames,
+      correctGuesserIds: correctGuessers.map(p => p.id),
+      correctGuesserNames,
+      fooledPlayerNames,
+      votes: gameState.votes,
+      impostorWon,
+      word: gameState.currentWord,
+      category: gameState.currentCategory,
+    };
+
+    if (correctGuesserNames.length > 0) {
+      // Whoever guessed the correct impostor is the winner!
+      recordRoundResult("crew", correctGuesserNames, roundSummary);
     } else {
-      recordRoundResult(
-        "impostor",
-        impostors.map(imp => imp.name),
-      );
+      recordRoundResult("impostor", impostorNames, roundSummary);
     }
   };
 
@@ -256,127 +285,99 @@ export default function VotingPhase() {
             </div>
           ) : (
             <div className="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-900/90 p-5 backdrop-blur-md animate-in fade-in zoom-in-95 duration-300">
-              {/* Result Banner */}
-              {isTie ? (
-                <div className="space-y-1.5 text-center">
-                  <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                    <AlertTriangle className="size-6" />
+              {/* Result Banner: Guessed Impostor = Winner! */}
+              {correctGuessers.length > 0 ? (
+                <div className="space-y-2 text-center rounded-2xl border border-emerald-500/40 bg-emerald-950/20 p-4 shadow-lg shadow-emerald-950/40">
+                  <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                    <Trophy className="size-6 text-amber-400" />
                   </div>
-                  <h2 className="text-2xl font-bold text-amber-400">
-                    {t("tieResult")}
+                  <h2 className="text-2xl font-black text-emerald-400">
+                    🏆 ROUND WINNER{correctGuessers.length > 1 ? "S" : ""}!
                   </h2>
                   <p className="text-xs text-zinc-300">
-                    {t("tieDescription")}
+                    Correctly guessed the Impostor:
                   </p>
-                </div>
-              ) : effectiveCrewWin ? (
-                <div className="space-y-1.5 text-center">
-                  <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                    <Award className="size-6" />
+                  <div className="flex flex-wrap justify-center gap-2 pt-1">
+                    {correctGuessers.map(p => (
+                      <span
+                        key={p.id}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/50 bg-emerald-500/20 px-3.5 py-1 text-sm font-bold text-emerald-200"
+                      >
+                        <Trophy className="size-3.5 text-amber-400" />
+                        {p.name}
+                      </span>
+                    ))}
                   </div>
-                  <h2 className="text-2xl font-bold text-emerald-400">
-                    {t("crewVictory")}
-                  </h2>
-                  <p className="text-sm text-zinc-200">
-                    <span className="font-bold text-white">{accused.name}</span>{" "}
-                    {t("impostorCaught")}
-                  </p>
                 </div>
               ) : (
-                <div className="space-y-1.5 text-center">
+                <div className="space-y-2 text-center rounded-2xl border border-red-500/40 bg-red-950/20 p-4 shadow-lg shadow-red-950/40">
                   <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-red-500/20 text-red-400 border border-red-500/30">
-                    <Skull className="size-6" />
+                    <Skull className="size-6 text-red-400" />
                   </div>
-                  <h2 className="text-2xl font-bold text-red-400">
-                    {t("impostorVictory")}
+                  <h2 className="text-2xl font-black text-red-400">
+                    🎭 IMPOSTOR WINS!
                   </h2>
-                  <p className="text-sm text-zinc-200">
-                    {hackResult === "success" ? (
-                      <span>
-                        💥 Impostor executed a successful Counter-Hack by
-                        guessing the secret word!
-                      </span>
-                    ) : (
-                      <>
-                        <span className="font-bold text-white">
-                          {accused.name}
-                        </span>{" "}
-                        {t("innocentAccused")}
-                      </>
-                    )}
+                  <p className="text-xs text-zinc-300">
+                    Nobody guessed the Impostor! The Impostor completely fooled everyone!
                   </p>
                 </div>
               )}
 
               <Separator className="bg-zinc-800" />
 
-              {/* Impostor Counter-Hack Feature */}
-              {accusedIsImpostor && hackResult === null && (
-                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-left space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-300">
-                      <Terminal className="size-3.5" />
-                      Impostor Counter-Hack Opportunity
-                    </div>
-                    {!showCounterHack && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setShowCounterHack(true)}
-                        className="h-6 border-amber-500/40 bg-amber-500/20 text-xs text-amber-200 hover:bg-amber-500/30"
-                      >
-                        <Zap className="mr-1 size-3" />
-                        Attempt Hack
-                      </Button>
-                    )}
-                  </div>
-
-                  {showCounterHack && (
-                    <div className="space-y-2 pt-1">
-                      <p className="text-xs text-zinc-300">
-                        {accused.name}: Can you guess the secret word to steal victory?
-                      </p>
-                      <div className="flex gap-2">
-                        <Input
-                          placeholder="Type secret AI word..."
-                          value={hackGuess}
-                          onChange={e => setHackGuess(e.target.value)}
-                          className="h-8 border-zinc-700 bg-zinc-800 text-xs"
-                        />
-                        <Button
-                          size="sm"
-                          onClick={handleCounterHackSubmit}
-                          className="h-8 bg-amber-600 px-3 text-xs text-white hover:bg-amber-700"
-                        >
-                          Submit
-                        </Button>
-                      </div>
-                    </div>
-                  )}
+              {/* Secret Word & Impostor Info */}
+              <div className="grid grid-cols-2 gap-2 text-left">
+                <div className="rounded-xl border border-blue-500/30 bg-blue-950/20 p-3">
+                  <p className="text-[10px] uppercase font-bold text-blue-400 tracking-wider">
+                    Secret Word
+                  </p>
+                  <p className="text-base font-black text-white truncate">
+                    {gameState.currentWord}
+                  </p>
                 </div>
-              )}
-
-              {hackResult === "failure" && (
-                <div className="rounded-lg border border-red-500/30 bg-red-950/30 p-2 text-xs text-red-300">
-                  ❌ Counter-Hack failed! "{hackGuess}" was incorrect. Crew victory stands!
+                <div className="rounded-xl border border-red-500/30 bg-red-950/20 p-3">
+                  <p className="text-[10px] uppercase font-bold text-red-400 tracking-wider">
+                    Real Impostor
+                  </p>
+                  <p className="text-base font-black text-red-300 truncate">
+                    {impostors.map(i => i.name).join(", ")}
+                  </p>
                 </div>
-              )}
+              </div>
 
-              {/* Real Impostor(s) Identification */}
-              <div className="space-y-1.5 text-left">
+              {/* Vote Breakdown */}
+              <div className="space-y-2 text-left rounded-xl border border-zinc-800 bg-zinc-950/60 p-3.5">
                 <p className="text-xs font-semibold tracking-wider text-zinc-400 uppercase">
-                  {t("realImpostors")}
+                  Vote Breakdown
                 </p>
-                <div className="flex flex-wrap gap-2">
-                  {impostors.map(imp => (
-                    <div
-                      key={imp.id}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-300"
-                    >
-                      <Skull className="size-3.5 text-red-400" />
-                      {imp.name}
-                    </div>
-                  ))}
+                <div className="space-y-1.5 text-xs">
+                  {gameState.players.map(voter => {
+                    const targetId = gameState.votes[voter.id];
+                    const target = gameState.players.find(p => p.id === targetId);
+                    const isVoterImpostor = voter.role === "impostor";
+                    const guessedImpostor = target && target.role === "impostor";
+
+                    return (
+                      <div
+                        key={voter.id}
+                        className="flex items-center justify-between py-1 px-2 rounded-lg bg-zinc-900/60"
+                      >
+                        <span className="font-semibold text-zinc-200">
+                          {voter.name}
+                          {isVoterImpostor && " (Impostor)"}
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <span className="text-zinc-400">voted for</span>
+                          <strong className="text-white">{target?.name || "No vote"}</strong>
+                          {guessedImpostor && !isVoterImpostor ? (
+                            <span className="text-emerald-400 font-bold">✅ Winner!</span>
+                          ) : !isVoterImpostor ? (
+                            <span className="text-zinc-500">❌ Fooled</span>
+                          ) : null}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 

@@ -24,6 +24,18 @@ export interface WordSet {
   usageCount?: number;
 }
 
+export interface RoundSummary {
+  impostorIds: number[];
+  impostorNames: string[];
+  correctGuesserIds: number[];
+  correctGuesserNames: string[];
+  fooledPlayerNames: string[];
+  votes: Record<number, number>; // voterId -> targetId
+  impostorWon: boolean;
+  word: string;
+  category: string;
+}
+
 export interface GameState {
   phase: "setup" | "wordreveal" | "discussion" | "voting" | "results";
   players: Player[];
@@ -40,4 +52,6 @@ export interface GameState {
   currentVotingPlayerIndex: number;
   votes: Record<number, number>; // voterId -> suspectPlayerId
   gameStarted: boolean;
+  lastRoundSummary?: RoundSummary | null;
 }
+
